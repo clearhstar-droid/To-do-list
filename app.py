@@ -116,17 +116,18 @@ if "category_filter" not in st.session_state:
 st.markdown(
     """
     <style>
-    .stApp { background: #f3f4f6; }
+    .stApp { background: #ffffff; }
     div[data-testid="stVerticalBlockBorderWrapper"] {
         background: #ffffff; border-radius: 16px; padding: 8px;
-        border: 1px solid #e5e7eb; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+        border: 1px solid #000000; box-shadow: none;
     }
     .todo-badge {
         font-size: 11px; padding: 2px 10px; border-radius: 999px;
         display: inline-block; white-space: nowrap;
+        border: 1px solid #000000;
     }
-    .todo-text-done { text-decoration: line-through; color: #9ca3af; }
-    .empty-message { text-align: center; color: #9ca3af; padding: 24px 0; }
+    .todo-text-done { text-decoration: line-through; color: #4b4b4b; }
+    .empty-message { text-align: center; color: #000000; padding: 24px 0; }
     </style>
     """,
     unsafe_allow_html=True,
@@ -135,7 +136,7 @@ st.markdown(
 with st.container(border=True):
     st.markdown("<h1 style='text-align:center;margin-bottom:0;'>To Do List</h1>", unsafe_allow_html=True)
     st.markdown(
-        f"<p style='text-align:center;color:#9ca3af;font-size:13px;'>{time.strftime('%Y년 %m월 %d일')}</p>",
+        f"<p style='text-align:center;color:#333333;font-size:13px;'>{time.strftime('%Y년 %m월 %d일')}</p>",
         unsafe_allow_html=True,
     )
 
@@ -180,7 +181,7 @@ with st.container(border=True):
     percent = round((completed_count / total) * 100) if total else 0
     st.progress(percent / 100)
     st.markdown(
-        f"<p style='text-align:right;color:#9ca3af;font-size:12px;'>"
+        f"<p style='text-align:right;color:#333333;font-size:12px;'>"
         f"{'할 일 없음' if total == 0 else f'{completed_count}/{total} 완료 ({percent}%)'}</p>",
         unsafe_allow_html=True,
     )
@@ -244,5 +245,5 @@ with st.container(border=True):
 
     footer_cols = st.columns([1, 1])
     remaining = sum(1 for t in st.session_state.todos if not t["completed"])
-    footer_cols[0].markdown(f"<span style='color:#9ca3af;font-size:13px;'>{remaining}개 남음</span>", unsafe_allow_html=True)
+    footer_cols[0].markdown(f"<span style='color:#333333;font-size:13px;'>{remaining}개 남음</span>", unsafe_allow_html=True)
     footer_cols[1].button("완료된 항목 삭제", on_click=clear_completed, use_container_width=True)
