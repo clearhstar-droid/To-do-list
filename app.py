@@ -16,22 +16,26 @@ STATUS_FILTERS = [("all", "전체"), ("active", "진행중"), ("completed", "완
 CATEGORY_FILTERS = [("all", "전체"), ("work", "업무"), ("personal", "개인"), ("etc", "기타")]
 
 
+# ---------------------------------------------------------------------------
+# 데이터 계층: localStorage 대신 JSON 파일로 영속화
+# ---------------------------------------------------------------------------
 def load_todos():
     try:
         raw = json.loads(STORAGE_FILE.read_text(encoding="utf-8")) if STORAGE_FILE.exists() else []
-        # 이전 버전 데이터(category/createdAt 없음) 마이그레이션
-        return [
-            {
-                "id": todo["id"],
-                "text": todo["text"],
-                "completed": bool(todo.get("completed", False)),
-                "category": todo.get("category") or "etc",
-                "createdAt": todo.get("createdAt") or todo["id"],
-            }
-            for todo in raw
-        ]
     except Exception:
         return []
+
+    # 이전 버전 데이터(category/createdAt 없음) 마이그레이션
+    return [
+        {
+            "id": todo["id"],
+            "text": todo["text"],
+            "completed": bool(todo.get("completed", False)),
+            "category": todo.get("category") or "etc",
+            "createdAt": todo.get("createdAt") or todo["id"],
+        }
+        for todo in raw
+    ]
 
 
 def save_todos():
@@ -40,17 +44,21 @@ def save_todos():
     )
 
 
+# ---------------------------------------------------------------------------
+# 상태 변경 콜백
+# ---------------------------------------------------------------------------
 def add_todo():
     text = st.session_state.new_text.strip()
     if not text:
         return
+    now_ms = int(time.time() * 1000)
     st.session_state.todos.append(
         {
-            "id": int(time.time() * 1000),
+            "id": now_ms,
             "text": text,
             "completed": False,
             "category": st.session_state.new_category,
-            "createdAt": int(time.time() * 1000),
+            "createdAt": now_ms,
         }
     )
     save_todos()
@@ -102,16 +110,15 @@ def set_category_filter(value):
     st.session_state.category_filter = value
 
 
+# ---------------------------------------------------------------------------
+# 페이지 설정 및 초기 상태
+# ---------------------------------------------------------------------------
 st.set_page_config(page_title="To Do List", page_icon="✅", layout="centered")
 
-if "todos" not in st.session_state:
-    st.session_state.todos = load_todos()
-if "editing_id" not in st.session_state:
-    st.session_state.editing_id = None
-if "status_filter" not in st.session_state:
-    st.session_state.status_filter = "all"
-if "category_filter" not in st.session_state:
-    st.session_state.category_filter = "all"
+st.session_state.setdefault("todos", load_todos())
+st.session_state.setdefault("editing_id", None)
+st.session_state.setdefault("status_filter", "all")
+st.session_state.setdefault("category_filter", "all")
 
 st.markdown(
     """
@@ -123,27 +130,32 @@ st.markdown(
     }
     .todo-badge {
         font-size: 11px; padding: 2px 10px; border-radius: 999px;
-        display: inline-block; white-space: nowrap;
-        border: 1px solid #000000;
+        display: inline-block; white-space: nowrap; border: 1px solid #000000;
     }
     .todo-text-done { text-decoration: line-through; color: #4b4b4b; }
     .empty-message { text-align: center; color: #000000; padding: 24px 0; }
+    .muted-text { color: #333333; }
     </style>
     """,
     unsafe_allow_html=True,
 )
 
+# ---------------------------------------------------------------------------
+# 레이아웃
+# ---------------------------------------------------------------------------
 with st.container(border=True):
     st.markdown("<h1 style='text-align:center;margin-bottom:0;'>To Do List</h1>", unsafe_allow_html=True)
     st.markdown(
-        f"<p style='text-align:center;color:#333333;font-size:13px;'>{time.strftime('%Y년 %m월 %d일')}</p>",
+        f"<p class='muted-text' style='text-align:center;font-size:13px;'>{time.strftime('%Y년 %m월 %d일')}</p>",
         unsafe_allow_html=True,
     )
 
     with st.form("add-form", clear_on_submit=False, border=False):
-        cols = st.columns([3, 1, 1])
-        cols[0].text_input("할 일 내용", key="new_text", placeholder="할 일을 입력하세요", label_visibility="collapsed")
-        cols[1].selectbox(
+        text_col, category_col, submit_col = st.columns([3, 1, 1])
+        text_col.text_input(
+            "할 일 내용", key="new_text", placeholder="할 일을 입력하세요", label_visibility="collapsed"
+        )
+        category_col.selectbox(
             "카테고리",
             options=list(CATEGORY_LABELS.keys()),
             format_func=lambda k: CATEGORY_LABELS[k],
@@ -151,7 +163,7 @@ with st.container(border=True):
             key="new_category",
             label_visibility="collapsed",
         )
-        cols[2].form_submit_button("추가", on_click=add_todo, use_container_width=True)
+        submit_col.form_submit_button("추가", on_click=add_todo, use_container_width=True)
 
     status_cols = st.columns(len(STATUS_FILTERS))
     for col, (value, label) in zip(status_cols, STATUS_FILTERS):
@@ -179,22 +191,23 @@ with st.container(border=True):
     total = len(st.session_state.todos)
     completed_count = sum(1 for t in st.session_state.todos if t["completed"])
     percent = round((completed_count / total) * 100) if total else 0
+
     st.progress(percent / 100)
+    progress_label = "할 일 없음" if total == 0 else f"{completed_count}/{total} 완료 ({percent}%)"
     st.markdown(
-        f"<p style='text-align:right;color:#333333;font-size:12px;'>"
-        f"{'할 일 없음' if total == 0 else f'{completed_count}/{total} 완료 ({percent}%)'}</p>",
+        f"<p class='muted-text' style='text-align:right;font-size:12px;'>{progress_label}</p>",
         unsafe_allow_html=True,
     )
 
     filtered = [
-        t
-        for t in st.session_state.todos
+        todo
+        for todo in st.session_state.todos
         if (
             st.session_state.status_filter == "all"
-            or (st.session_state.status_filter == "active" and not t["completed"])
-            or (st.session_state.status_filter == "completed" and t["completed"])
+            or (st.session_state.status_filter == "active" and not todo["completed"])
+            or (st.session_state.status_filter == "completed" and todo["completed"])
         )
-        and (st.session_state.category_filter == "all" or t["category"] == st.session_state.category_filter)
+        and (st.session_state.category_filter == "all" or todo["category"] == st.session_state.category_filter)
     ]
 
     st.divider()
@@ -203,10 +216,10 @@ with st.container(border=True):
         st.markdown("<p class='empty-message'>할 일이 없습니다</p>", unsafe_allow_html=True)
     else:
         for todo in filtered:
-            bg, fg = CATEGORY_COLORS[todo["category"]]
-            row = st.columns([0.5, 5, 1.3, 0.6, 0.6])
+            badge_bg, badge_fg = CATEGORY_COLORS[todo["category"]]
+            check_col, text_col, badge_col, edit_col, delete_col = st.columns([0.5, 5, 1.3, 0.6, 0.6])
 
-            row[0].checkbox(
+            check_col.checkbox(
                 "완료",
                 value=todo["completed"],
                 key=f"check-{todo['id']}",
@@ -217,7 +230,7 @@ with st.container(border=True):
 
             if st.session_state.editing_id == todo["id"]:
                 input_key = f"edit-{todo['id']}"
-                row[1].text_input(
+                text_col.text_input(
                     "수정",
                     value=todo["text"],
                     key=input_key,
@@ -227,23 +240,24 @@ with st.container(border=True):
                 )
             else:
                 text_class = "todo-text-done" if todo["completed"] else ""
-                row[1].markdown(f"<span class='{text_class}'>{todo['text']}</span>", unsafe_allow_html=True)
+                text_col.markdown(f"<span class='{text_class}'>{todo['text']}</span>", unsafe_allow_html=True)
 
-            row[2].markdown(
-                f"<span class='todo-badge' style='background:{bg};color:{fg};'>{CATEGORY_LABELS[todo['category']]}</span>",
+            badge_col.markdown(
+                f"<span class='todo-badge' style='background:{badge_bg};color:{badge_fg};'>"
+                f"{CATEGORY_LABELS[todo['category']]}</span>",
                 unsafe_allow_html=True,
             )
 
             if st.session_state.editing_id == todo["id"]:
-                row[3].button("취소", key=f"cancel-{todo['id']}", on_click=cancel_edit)
+                edit_col.button("취소", key=f"cancel-{todo['id']}", on_click=cancel_edit)
             else:
-                row[3].button("✏️", key=f"editbtn-{todo['id']}", on_click=start_edit, args=(todo["id"],))
+                edit_col.button("✏️", key=f"editbtn-{todo['id']}", on_click=start_edit, args=(todo["id"],))
 
-            row[4].button("✕", key=f"delete-{todo['id']}", on_click=delete_todo, args=(todo["id"],))
+            delete_col.button("✕", key=f"delete-{todo['id']}", on_click=delete_todo, args=(todo["id"],))
 
     st.divider()
 
-    footer_cols = st.columns([1, 1])
-    remaining = sum(1 for t in st.session_state.todos if not t["completed"])
-    footer_cols[0].markdown(f"<span style='color:#333333;font-size:13px;'>{remaining}개 남음</span>", unsafe_allow_html=True)
-    footer_cols[1].button("완료된 항목 삭제", on_click=clear_completed, use_container_width=True)
+    remaining_col, clear_col = st.columns([1, 1])
+    remaining = sum(1 for todo in st.session_state.todos if not todo["completed"])
+    remaining_col.markdown(f"<span class='muted-text' style='font-size:13px;'>{remaining}개 남음</span>", unsafe_allow_html=True)
+    clear_col.button("완료된 항목 삭제", on_click=clear_completed, use_container_width=True)
