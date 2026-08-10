@@ -116,9 +116,10 @@ if "category_filter" not in st.session_state:
 st.markdown(
     """
     <style>
-    .stApp { background: linear-gradient(135deg, #6366f1, #a855f7); }
+    .stApp { background: #f3f4f6; }
     div[data-testid="stVerticalBlockBorderWrapper"] {
         background: #ffffff; border-radius: 16px; padding: 8px;
+        border: 1px solid #e5e7eb; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
     }
     .todo-badge {
         font-size: 11px; padding: 2px 10px; border-radius: 999px;
